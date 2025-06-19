@@ -4,6 +4,9 @@ from contextlib import asynccontextmanager
 import logging
 import asyncio
 
+from app.application.services.attachment_service import AttachmentService
+from app.infrastructure.external.file.file_operate import FileOperationFactory
+from app.infrastructure.repositories.mongo_attachment_repository import AttachmentRepository
 from app.interfaces.api.routes import router
 from app.application.services.agent_service import AgentService
 from app.infrastructure.config import get_settings
@@ -18,7 +21,7 @@ from app.infrastructure.repositories.mongo_agent_repository import MongoAgentRep
 from app.infrastructure.repositories.mongo_session_repository import MongoSessionRepository
 from app.infrastructure.external.task.redis_task import RedisStreamTask
 from app.interfaces.api.routes import get_agent_service
-from app.infrastructure.models.documents import AgentDocument, SessionDocument
+from app.infrastructure.models.documents import AgentDocument, SessionDocument, AttachmentDocument
 from app.infrastructure.utils.llm_json_parser import LLMJsonParser
 from beanie import init_beanie
 
@@ -36,7 +39,7 @@ def create_agent_service() -> AgentService:
     if settings.google_search_api_key and settings.google_search_engine_id:
         logger.info("Initializing Google Search Engine")
         search_engine = GoogleSearchEngine(
-            api_key=settings.google_search_api_key, 
+            api_key=settings.google_search_api_key,
             cx=settings.google_search_engine_id
         )
     else:
@@ -52,13 +55,21 @@ def create_agent_service() -> AgentService:
         search_engine=search_engine,
     )
 
+
 # Create agent service instance
 agent_service = create_agent_service()
+
+
+def get_attachment_service() -> AttachmentService:
+    storage_factory = FileOperationFactory()
+    attachment_repository = AttachmentRepository()
+    return AttachmentService(storage_factory, attachment_repository)
+
 
 async def shutdown() -> None:
     """Cleanup function that will be called when the application is shutting down"""
     logger.info("Graceful shutdown...")
-    
+
     try:
         # Create task for agent service shutdown with timeout
         shutdown_task = asyncio.create_task(agent_service.shutdown())
@@ -67,29 +78,30 @@ async def shutdown() -> None:
             logger.info("Successfully completed graceful shutdown")
         except asyncio.TimeoutError:
             logger.warning("Shutdown timed out after 30 seconds")
-            
+
     except Exception as e:
         logger.error(f"Error during shutdown: {str(e)}")
+
 
 # Create lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Code executed on startup
     logger.info("Application startup - Manus AI Agent initializing")
-    
+
     # Initialize MongoDB and Beanie
     await get_mongodb().initialize()
 
     # Initialize Beanie
     await init_beanie(
         database=get_mongodb().client[settings.mongodb_database],
-        document_models=[AgentDocument, SessionDocument]
+        document_models=[AgentDocument, SessionDocument, AttachmentDocument]
     )
     logger.info("Successfully initialized Beanie")
-    
+
     # Initialize Redis
     await get_redis().initialize()
-    
+
     try:
         yield
     finally:
@@ -100,6 +112,7 @@ async def lifespan(app: FastAPI):
         # Disconnect from Redis
         await get_redis().shutdown()
         await shutdown()
+
 
 app = FastAPI(title="Manus AI Agent", lifespan=lifespan)
 app.dependency_overrides[get_agent_service] = lambda: agent_service

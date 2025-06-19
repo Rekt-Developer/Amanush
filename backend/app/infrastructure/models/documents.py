@@ -42,3 +42,35 @@ class SessionDocument(Document):
         indexes = [
             "session_id",
         ]
+
+class AttachmentDocument(Document):
+    """
+    Model for file attachment documents stored in MongoDB.
+
+    Fields:
+        attachment_id (str): Unique identifier for the attachment.
+        session_id (str): The session to which the attachment belongs.
+        filename (str): The name of the uploaded file.
+        content_type (str): The MIME type of the file.
+        file_size (int): The size of the file in bytes.
+        storage_type (str): The type of storage backend (e.g., 'mongodb').
+        storage_url (str): The storage URL or object ID in the backend.
+        created_at (datetime): The creation timestamp.
+        updated_at (datetime): The last update timestamp.
+    """
+    attachment_id: str
+    session_id: str
+    filename: str
+    content_type: str
+    file_size: int
+    storage_type:str
+    storage_url: str
+    created_at: datetime = datetime.now(timezone.utc)
+    updated_at: datetime = datetime.now(timezone.utc)
+
+    class Settings:
+        name = "attachments"
+        indexes = [
+            "attachment_id",
+            "task_id"
+        ]
