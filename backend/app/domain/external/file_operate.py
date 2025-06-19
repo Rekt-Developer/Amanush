@@ -11,7 +11,7 @@ class FileOperate(Protocol):
                           metadata: Optional[Dict[str, Any]] = None) -> dict:
         ...
 
-    async def download_file(self, storage_url: str) -> Optional[bytes]:
+    async def download_file(self, storage_url: str) ->  Optional[dict]:
         ...
 
     async def delete_file(self, storage_url: str) -> bool:

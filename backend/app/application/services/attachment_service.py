@@ -92,7 +92,6 @@ class AttachmentService:
             storage_url=storage_url
         )
 
-        # 保存到数据库
         return await self.repository.save(attachment)
 
     async def delete_attachment(self, _id: str) -> None:
