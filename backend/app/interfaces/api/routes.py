@@ -38,12 +38,9 @@ def get_attachment_service() -> AttachmentService:
 
 @router.put("/sessions", response_model=APIResponse[CreateSessionResponse])
 async def create_session(
-        request: Optional[CreateSessionRequest] = None,
-        agent_service: AgentService = Depends(get_agent_service),
-        attachment_service: AttachmentService = Depends(get_attachment_service)
+        agent_service: AgentService = Depends(get_agent_service)
 ) -> APIResponse[CreateSessionResponse]:
-    attachments = request.attachments if request is not None else None
-    session = await agent_service.create_session(attachments, attachment_service)
+    session = await agent_service.create_session()
     return APIResponse.success(
         CreateSessionResponse(
             session_id=session.id,
@@ -131,8 +128,24 @@ async def get_all_sessions(
 async def chat(
         session_id: str,
         request: ChatRequest,
-        agent_service: AgentService = Depends(get_agent_service)
+        agent_service: AgentService = Depends(get_agent_service),
+        attachment_service: AttachmentService = Depends(get_attachment_service)
 ) -> EventSourceResponse:
+    """
+     When sending a chat, bind attachments and session
+    """
+    attachments = request.attachments if request is not None else None
+    if attachments:
+        for attachment in attachments:
+            await attachment_service.bind_attachment_to_session(
+                session_id=session_id,
+                filename=attachment.filename,
+                content_type=attachment.content_type,
+                file_size=attachment.file_size,
+                storage_type=attachment.storage_type,
+                storage_url=attachment.storage_url
+            )
+
     async def event_generator() -> AsyncGenerator[ServerSentEvent, None]:
         async for event in agent_service.chat(
                 session_id=session_id,

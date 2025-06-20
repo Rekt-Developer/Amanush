@@ -49,24 +49,12 @@ class AgentService:
         self._search_engine = search_engine
         self._sandbox_cls = sandbox_cls
 
-    async def create_session(self, attachments: Optional[List[AttachmentBindRequest]], attachment_service) -> Session:
+    async def create_session(self) -> Session:
         logger.info("Creating new session")
         agent = await self._create_agent()
         session = Session(agent_id=agent.id)
         logger.info(f"Created new Session with ID: {session.id}")
         await self._session_repository.save(session)
-
-        if attachments:
-            for attachment in attachments:
-                await attachment_service.bind_attachment_to_session(
-                    session_id=session.id,
-                    filename=attachment.filename,
-                    content_type=attachment.content_type,
-                    file_size=attachment.file_size,
-                    storage_type=attachment.storage_type,
-                    storage_url=attachment.storage_url
-                )
-
         return session
 
     async def _create_agent(self) -> Agent:
