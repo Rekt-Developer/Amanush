@@ -11,7 +11,7 @@ from app.application.services.agent_service import AgentService
 from app.application.services.attachment_service import AttachmentService
 from app.infrastructure.external.file.file_operate import FileOperationFactory
 from app.infrastructure.repositories.mongo_attachment_repository import AttachmentRepository
-from app.interfaces.schemas.request import ChatRequest, FileViewRequest, ShellViewRequest, CreateSessionRequest
+from app.interfaces.schemas.request import ChatRequest, FileViewRequest, ShellViewRequest
 from app.interfaces.schemas.response import APIResponse, CreateSessionResponse, GetSessionResponse, ListSessionItem, \
     ListSessionResponse, AttachmentUploadResponse, \
     SessionAttachmentsResponse
@@ -134,7 +134,7 @@ async def chat(
     """
      When sending a chat, bind attachments and session
     """
-    attachments = request.attachments if request is not None else None
+    attachments = request.attachments if request.attachments else None
     if attachments:
         for attachment in attachments:
             await attachment_service.bind_attachment_to_session(
