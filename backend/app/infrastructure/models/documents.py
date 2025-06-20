@@ -4,6 +4,8 @@ from beanie import Document
 from app.domain.models.memory import Memory
 from app.domain.events.agent_events import AgentEvent
 from app.domain.models.session import SessionStatus
+from app.domain.models.user import AuthType
+
 
 class AgentDocument(Document):
     """MongoDB document for Agent"""
@@ -41,4 +43,25 @@ class SessionDocument(Document):
         name = "sessions"
         indexes = [
             "session_id",
+        ]
+
+
+class UserDocument(Document):
+    """MongoDB document for User"""
+    user_id: str
+    username: str
+    email: str
+    hashed_password: str
+    auth_type: AuthType = AuthType.PASSWORD
+    full_name: Optional[str] = None
+    created_at: datetime = datetime.now(timezone.utc)
+    updated_at: datetime = datetime.now(timezone.utc)
+    last_login_at: Optional[datetime] = None
+
+    class Settings:
+        name = "users"
+        indexes = [
+            "user_id",
+            "username",
+            "email",
         ]

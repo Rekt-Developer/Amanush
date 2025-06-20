@@ -10,10 +10,14 @@ from app.application.services.agent_service import AgentService
 from app.interfaces.schemas.request import ChatRequest, FileViewRequest, ShellViewRequest
 from app.interfaces.schemas.response import APIResponse, CreateSessionResponse, GetSessionResponse, ShellViewResponse, FileViewResponse, ListSessionItem, ListSessionResponse
 from app.interfaces.schemas.event import SSEEventFactory
+from app.interfaces.api.user_routes import router as user_router
 
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Include user routes
+router.include_router(user_router)
 
 TOOL_POLL_INTERVAL = 5
 SESSION_POLL_INTERVAL = 5

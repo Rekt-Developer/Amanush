@@ -18,7 +18,7 @@ from app.infrastructure.repositories.mongo_agent_repository import MongoAgentRep
 from app.infrastructure.repositories.mongo_session_repository import MongoSessionRepository
 from app.infrastructure.external.task.redis_task import RedisStreamTask
 from app.interfaces.api.routes import get_agent_service
-from app.infrastructure.models.documents import AgentDocument, SessionDocument
+from app.infrastructure.models.documents import AgentDocument, SessionDocument, UserDocument
 from app.infrastructure.utils.llm_json_parser import LLMJsonParser
 from beanie import init_beanie
 
@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI):
     # Initialize Beanie
     await init_beanie(
         database=get_mongodb().client[settings.mongodb_database],
-        document_models=[AgentDocument, SessionDocument]
+        document_models=[AgentDocument, SessionDocument, UserDocument]
     )
     logger.info("Successfully initialized Beanie")
     

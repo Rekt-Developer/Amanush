@@ -28,4 +28,19 @@ class ServerError(AppException):
 
 class UnauthorizedError(AppException):
     def __init__(self, msg: str = "Unauthorized"):
-        super().__init__(code=401, msg=msg, status_code=401) 
+        super().__init__(code=401, msg=msg, status_code=401)
+
+
+class UserAlreadyExistsError(BadRequestError):
+    def __init__(self, msg: str = "User already exists"):
+        super().__init__(msg=msg)
+
+
+class UserNotFoundError(NotFoundError):
+    def __init__(self, msg: str = "User not found"):
+        super().__init__(msg=msg)
+
+
+class InvalidCredentialsError(UnauthorizedError):
+    def __init__(self, msg: str = "Invalid credentials"):
+        super().__init__(msg=msg) 

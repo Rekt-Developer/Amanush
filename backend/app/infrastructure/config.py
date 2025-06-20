@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # Logging configuration
     log_level: str = "INFO"
     
+    # JWT configuration
+    jwt_secret_key: str = "your-secret-key-here"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 30
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
