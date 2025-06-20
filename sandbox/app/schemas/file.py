@@ -1,8 +1,10 @@
 """
 File operation request models
 """
+from io import BytesIO
+
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Dict, Any
 
 
 class FileReadRequest(BaseModel):
@@ -42,3 +44,26 @@ class FileFindRequest(BaseModel):
     """File find request"""
     path: str = Field(..., description="Directory path to search")
     glob: str = Field(..., description="Filename pattern (glob syntax)")
+
+
+class FileUploadResult(BaseModel):
+    filename: str
+    path: str
+    size: int
+    content_type: Optional[str] = None
+
+
+class FileDownloadResult:
+    """File download result for FastAPI streaming response"""
+
+    def __init__(
+            self,
+            file_data: BytesIO,
+            filename: str,
+            content_type: Optional[str],
+            size: int,
+    ):
+        self.file_data = file_data
+        self.filename = filename
+        self.content_type = content_type
+        self.size = size
