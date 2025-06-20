@@ -60,7 +60,7 @@ class AttachmentService:
             storage_url=storage_url,
             filename=result['filename'],
             content_type=result['content_type'],
-            content=base64.b64encode(result['content']).decode('utf-8'),
+            content=result['content'],
             file_size=result['file_size']
         )
 

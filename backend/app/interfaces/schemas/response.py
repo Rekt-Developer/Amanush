@@ -87,13 +87,13 @@ class AttachmentDownloadResponse(BaseModel):
         storage_url (str): The storage URL or object ID in the backend.
         filename (str): The name of the downloaded file.
         content_type (str): The MIME type of the file.
-        content (str): The file content, base64 encoded.
+        content (bytes): The file content.
         file_size (int): The size of the file in bytes.
     """
     storage_url: str
     filename: str
     content_type: str
-    content: str
+    content: bytes
     file_size: int
 
 
