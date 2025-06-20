@@ -4,10 +4,10 @@ File operation API interfaces
 import mimetypes
 import os
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, UploadFile
 from fastapi.params import File, Form, Query
-from starlette.responses import StreamingResponse
 
 from app.core.exceptions import ResourceNotFoundException
 from app.schemas.file import (
@@ -16,6 +16,7 @@ from app.schemas.file import (
 )
 from app.schemas.response import Response
 from app.services.file import file_service
+from starlette.responses import FileResponse
 
 router = APIRouter()
 
@@ -139,9 +140,6 @@ async def upload_file(
     )
 
 
-import aiofiles
-from fastapi.responses import StreamingResponse
-
 
 @router.get("/download")
 async def download_file(file_path: str = Query(...)):
@@ -149,20 +147,22 @@ async def download_file(file_path: str = Query(...)):
         raise ResourceNotFoundException(f"File does not exist: {file_path}")
 
     filename = os.path.basename(file_path)
-    content_type, _ = mimetypes.guess_type(filename) or "application/octet-stream"
-    size = os.path.getsize(file_path)
+    mime_type, _ = mimetypes.guess_type(filename)
+    if not mime_type:
+        mime_type = "application/octet-stream"
 
-    async def file_iterator():
-        async with aiofiles.open(file_path, "rb") as file:
-            while chunk := await file.read(64 * 1024):  # 64KB分块
-                yield chunk
+    safe_filename = quote(filename)
+    content_disposition = (
+        f"attachment; "
+        f'filename="{safe_filename}"; '  
+        f"filename*=UTF-8''{safe_filename}"
+    )
 
-    response = StreamingResponse(
-        file_iterator(),
-        media_type=content_type,
+    return FileResponse(
+        file_path,
+        media_type=mime_type,
+        filename=filename,
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Content-Length": str(size)
+            "Content-Disposition": content_disposition
         }
     )
-    return response
