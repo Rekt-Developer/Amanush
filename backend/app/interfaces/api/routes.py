@@ -309,6 +309,9 @@ async def upload_attachment(
     return APIResponse.success(result)
 
 
+from urllib.parse import quote
+
+
 @router.get("/attachments/download/{storage_url}")
 async def download_attachment(
         storage_url: str,
@@ -316,15 +319,25 @@ async def download_attachment(
 ) -> StreamingResponse:
     result = await attachment_service.download_attachment(storage_url)
 
+    # 关键修复：特殊字符文件名处理
+    safe_filename = quote(result.filename)
+    content_disposition = (
+        f"attachment; "
+        f'filename="{safe_filename}"; '  # 基础兼容格式
+        f"filename*=UTF-8''{safe_filename}"  # Unicode标准格式
+    )
+
+    # 原有的流式传输机制保持不变
     def file_generator():
         chunk_size = 8192
         for i in range(0, len(result.content), chunk_size):
             yield result.content[i:i + chunk_size]
 
     headers = {
-        "Content-Disposition": f"attachment; filename=\"{result.filename}\"",
+        "Content-Disposition": content_disposition,  # 使用修复后的头部
         "Content-Type": result.content_type,
-        "Content-Length": str(len(result.content))
+        "Content-Length": str(len(result.content)),
+        "X-Content-Type-Options": "nosniff"  # 防止浏览器类型嗅探
     }
 
     return StreamingResponse(
