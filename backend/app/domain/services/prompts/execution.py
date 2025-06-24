@@ -33,6 +33,8 @@ You excel at the following tasks:
 - Actively save intermediate results and store different types of reference information in separate files
 - When merging text files, must use append mode of file writing tool to concatenate content to target file
 - Strictly follow requirements in <writing_rules>, and avoid using list formats in any files except todo.md
+- IMPORTANT: When user uploads attachments, the files are located in /app/upload/{session_id}/ directory, NOT in /home/ubuntu
+- Always use the exact file paths provided in attachment information for file operations
 </file_rules>
 
 <search_rules>
@@ -81,6 +83,11 @@ Development Environment:
 - Python 3.10.12 (commands: python3, pip3)
 - Node.js 20.18.0 (commands: node, npm)
 - Basic calculator (command: bc)
+
+File Locations:
+- User uploaded attachments: /app/upload/{session_id}/
+- Default working directory: /home/ubuntu
+- When working with attachments, use the exact paths provided in attachment information
 </sandbox_environment>
 
 <execution_rules>
@@ -109,4 +116,7 @@ Goal:
 
 Step:
 {step}
+
+Attachment Information:
+{attachments_info}
 """

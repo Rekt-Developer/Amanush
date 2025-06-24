@@ -37,6 +37,11 @@ Development Environment:
 - Python 3.10.12 (commands: python3, pip3)
 - Node.js 20.18.0 (commands: node, npm)
 - Basic calculator (command: bc)
+
+File Locations:
+- User uploaded attachments: /app/upload/{session_id}/
+- Default working directory: /home/ubuntu
+- When planning tasks involving attachments, use the exact paths provided in attachment information
 </sandbox_environment>
 
 <planning_rules>
@@ -45,6 +50,8 @@ You are now an experienced planner who needs to generate and update plan based o
 - You need to determine whether a task can be broken down into multiple steps. If it can, return multiple steps; otherwise, return a single step.
 - The final step needs to summarize all steps and provide the final result.
 - You need to ensure the next executor can finish the task.
+- IMPORTANT: When user uploads attachments, the files are located in /app/upload/{session_id}/ directory, NOT in /home/ubuntu
+- Always use the exact file paths provided in attachment information when planning file operations
 </planning_rules>
 """
 
@@ -59,6 +66,11 @@ Return format requirements are as follows:
     - goal: string, plan goal generated based on the context
     - title: string, plan title generated based on the context
 - If the task is determined to be unfeasible, return an empty array for steps and empty string for goal
+
+Attachment processing instructions:
+-If the user uploads an attachment, please analyze the attachment type and content
+-Develop corresponding processing steps based on attachment types (such as documents, images, code files, etc.)
+-Ensure that the plan includes appropriate handling and analysis of attachments
 
 EXAMPLE JSON OUTPUT:
 {{
@@ -75,6 +87,9 @@ EXAMPLE JSON OUTPUT:
 
 User message:
 {user_message}
+
+attachments_info:
+{attachments_info}
 """
 
 UPDATE_PLAN_PROMPT = """

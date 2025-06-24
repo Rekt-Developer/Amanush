@@ -1,3 +1,4 @@
+import json
 from typing import Optional, AsyncGenerator
 import asyncio
 import logging
@@ -94,14 +95,29 @@ class AgentTaskRunner(TaskRunner):
         try:
             logger.info(f"Agent {self._agent_id} message processing task started")
             while not await task.input_stream.is_empty():
-                _, message = await task.input_stream.pop()
-                if message is None:
+                _, message_data = await task.input_stream.pop()
+                if message_data is None:
                     logger.warning(f"Agent {self._agent_id} received empty message")
                     return
+                
+                # 处理新的消息格式：可能是字符串或JSON格式
+                if isinstance(message_data, str):
+                    try:
+                        # 尝试解析JSON格式的消息
+                        parsed_data = json.loads(message_data)
+                        message = parsed_data.get("message", "")
+                        attachments_info = parsed_data.get("attachments_info")
+                    except json.JSONDecodeError:
+                        # 如果不是JSON格式，当作普通消息处理
+                        message = message_data
+                        attachments_info = None
+                else:
+                    message = str(message_data)
+                    attachments_info = None
                     
                 logger.info(f"Agent {self._agent_id} received new message: {message[:50]}...")
                 
-                async for event in self._run_flow(message):
+                async for event in self._run_flow(message, attachments_info):
                     if isinstance(event, ToolEvent):
                         # TODO: move to tool function
                         await self._handle_tool_event(task, event)
@@ -127,14 +143,14 @@ class AgentTaskRunner(TaskRunner):
             await self._put_and_add_event(task, ErrorEvent(error=f"Task error: {str(e)}"))
             await self._session_repository.update_status(self._session_id, SessionStatus.COMPLETED)
     
-    async def _run_flow(self, message: str) -> AsyncGenerator[BaseEvent, None]:
+    async def _run_flow(self, message: str, attachments_info: Optional[str] = None) -> AsyncGenerator[BaseEvent, None]:
         """Process a single message through the agent's flow and yield events"""
         if not message:
             logger.warning(f"Agent {self._agent_id} received empty message")
             yield ErrorEvent(error="No message")
             return
 
-        async for event in self._flow.run(message):
+        async for event in self._flow.run(message, attachments_info):
             yield event
 
         logger.info(f"Agent {self._agent_id} completed processing one message")

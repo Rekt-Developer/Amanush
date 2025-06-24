@@ -99,6 +99,15 @@ class WaitEvent(BaseEvent):
     """Wait event"""
     type: Literal["wait"] = "wait"
 
+class AttachmentEvent(BaseEvent):
+    """附件相关事件"""
+    type: Literal["attachment"] = "attachment"
+    filename: str
+    content_type: str
+    file_size: int
+    status: Literal["uploaded", "analyzed", "error"]
+    message: str
+
 AgentEvent = Union[
     BaseEvent,
     ErrorEvent,
@@ -108,7 +117,8 @@ AgentEvent = Union[
     MessageEvent,
     DoneEvent,
     TitleEvent,
-    WaitEvent
+    WaitEvent,
+    AttachmentEvent
 ]
 
 
@@ -136,6 +146,8 @@ class AgentEventFactory:
             return TitleEvent.model_validate_json(event_str)
         elif (event.type == "wait"):
             return WaitEvent.model_validate_json(event_str)
+        elif (event.type == "attachment"):
+            return AttachmentEvent.model_validate_json(event_str)
         else:
             return event
     

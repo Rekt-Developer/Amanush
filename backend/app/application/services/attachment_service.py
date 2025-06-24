@@ -81,6 +81,11 @@ class AttachmentService:
         Returns:
             AttachmentDocument: The saved attachment document.
         """
+        existing_attachment = await self.repository.find_by_session_and_storage_url(session_id, storage_url)
+        if existing_attachment:
+            logger.info(f"Attachment already bound to session {session_id}: {filename}")
+            return existing_attachment
+
         # 创建AttachmentDocument
         attachment = AttachmentDocument(
             attachment_id=str(ObjectId()),

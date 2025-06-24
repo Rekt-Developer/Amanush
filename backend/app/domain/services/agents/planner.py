@@ -6,8 +6,8 @@ from app.domain.services.agents.base import BaseAgent
 from app.domain.models.memory import Memory
 from app.domain.external.llm import LLM
 from app.domain.services.prompts.planner import (
-    PLANNER_SYSTEM_PROMPT, 
-    CREATE_PLAN_PROMPT, 
+    PLANNER_SYSTEM_PROMPT,
+    CREATE_PLAN_PROMPT,
     UPDATE_PLAN_PROMPT
 )
 from app.domain.events.agent_events import (
@@ -26,6 +26,7 @@ from app.domain.utils.json_parser import JsonParser
 
 logger = logging.getLogger(__name__)
 
+
 class PlannerAgent(BaseAgent):
     """
     Planner agent class, defining the basic behavior of planning
@@ -36,11 +37,11 @@ class PlannerAgent(BaseAgent):
     format: Optional[str] = "json_object"
 
     def __init__(
-        self,
-        agent_id: str,
-        agent_repository: AgentRepository,
-        llm: LLM,
-        json_parser: JsonParser,
+            self,
+            agent_id: str,
+            agent_repository: AgentRepository,
+            llm: LLM,
+            json_parser: JsonParser,
     ):
         super().__init__(
             agent_id=agent_id,
@@ -49,15 +50,29 @@ class PlannerAgent(BaseAgent):
             json_parser=json_parser,
         )
 
+    async def create_plan(self, message: Optional[str] = None, attachments_info: Optional[str] = None) -> \
+            AsyncGenerator[BaseEvent, None]:
+        if message:
+            if attachments_info:
+                formatted_message = CREATE_PLAN_PROMPT.format(
+                    user_message=message,
+                    attachments_info=attachments_info
+                )
+            else:
+                formatted_message = CREATE_PLAN_PROMPT.format(
+                    user_message=message,
+                    attachments_info="no attachments"
+                )
+        else:
+            formatted_message = None
 
-    async def create_plan(self, message: Optional[str] = None) -> AsyncGenerator[BaseEvent, None]:
-        message = CREATE_PLAN_PROMPT.format(user_message=message) if message else None
-        async for event in self.execute(message):
+        async for event in self.execute(formatted_message):
             if isinstance(event, MessageEvent):
                 logger.info(event.message)
                 parsed_response = await self.json_parser.parse(event.message)
                 steps = [Step(id=step["id"], description=step["description"]) for step in parsed_response["steps"]]
-                plan = Plan(id=f"plan_{len(steps)}", goal=parsed_response["goal"], title=parsed_response["title"], steps=steps, message=parsed_response["message"], todo=parsed_response.get("todo", ""))
+                plan = Plan(id=f"plan_{len(steps)}", goal=parsed_response["goal"], title=parsed_response["title"],
+                            steps=steps, message=parsed_response["message"], todo=parsed_response.get("todo", ""))
                 yield PlanEvent(status=PlanStatus.CREATED, plan=plan)
             else:
                 yield event
@@ -68,14 +83,14 @@ class PlannerAgent(BaseAgent):
             if isinstance(event, MessageEvent):
                 parsed_response = await self.json_parser.parse(event.message)
                 new_steps = [Step(id=step["id"], description=step["description"]) for step in parsed_response["steps"]]
-                
+
                 # Find the index of the first pending step
                 first_pending_index = None
                 for i, step in enumerate(plan.steps):
                     if not step.is_done():
                         first_pending_index = i
                         break
-                
+
                 # If there are pending steps, replace all pending steps
                 if first_pending_index is not None:
                     # Keep completed steps
@@ -84,7 +99,7 @@ class PlannerAgent(BaseAgent):
                     updated_steps.extend(new_steps)
                     # Update steps in plan
                     plan.steps = updated_steps
-                
+
                 yield PlanEvent(status=PlanStatus.UPDATED, plan=plan)
             else:
                 yield event

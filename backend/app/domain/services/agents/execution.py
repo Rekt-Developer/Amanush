@@ -35,14 +35,14 @@ class ExecutionAgent(BaseAgent):
     system_prompt: str = EXECUTION_SYSTEM_PROMPT
 
     def __init__(
-        self,
-        agent_id: str,
-        agent_repository: AgentRepository,
-        llm: LLM,
-        sandbox: Sandbox,
-        browser: Browser,
-        json_parser: JsonParser,
-        search_engine: Optional[SearchEngine] = None,
+            self,
+            agent_id: str,
+            agent_repository: AgentRepository,
+            llm: LLM,
+            sandbox: Sandbox,
+            browser: Browser,
+            json_parser: JsonParser,
+            search_engine: Optional[SearchEngine] = None,
     ):
         super().__init__(
             agent_id=agent_id,
@@ -56,13 +56,15 @@ class ExecutionAgent(BaseAgent):
                 MessageTool()
             ]
         )
-        
+
         # Only add search tool when search_engine is not None
         if search_engine:
             self.tools.append(SearchTool(search_engine))
-    
-    async def execute_step(self, plan: Plan, step: Step, message: str = "") -> AsyncGenerator[BaseEvent, None]:
-        message = EXECUTION_PROMPT.format(goal=plan.goal, step=step.description, message=message)
+
+    async def execute_step(self, plan: Plan, step: Step, message: str = "", attachments_info: Optional[str] = None) -> \
+            AsyncGenerator[BaseEvent, None]:
+        message = EXECUTION_PROMPT.format(goal=plan.goal, step=step.description, message=message,
+                                          attachments_info=attachments_info)
         step.status = ExecutionStatus.RUNNING
         yield StepEvent(status=StepStatus.STARTED, step=step)
         async for event in self.execute(message):

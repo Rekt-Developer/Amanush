@@ -24,3 +24,10 @@ class AttachmentRepository:
             logger.info(f"删除元数据成功")
             return True
         return False
+
+    async def find_by_session_and_storage_url(self, session_id: str, storage_url: str) -> Optional[AttachmentDocument]:
+        """根据会话ID和存储URL查找附件"""
+        return await AttachmentDocument.find_one({
+            "session_id": session_id,
+            "storage_url": storage_url
+        })
