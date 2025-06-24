@@ -105,6 +105,7 @@ export interface SSECallbacks<T = any> {
   onMessage?: (event: { event: string; data: T }) => void;
   onClose?: () => void;
   onError?: (error: Error) => void;
+
 }
 
 export interface SSEOptions {

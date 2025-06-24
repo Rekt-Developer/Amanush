@@ -54,8 +54,15 @@ export const chatWithSession = async (
   sessionId: string, 
   message: string = '',
   eventId?: string,
-  callbacks?: SSECallbacks<AgentSSEEvent['data']>
+  callbacks?: SSECallbacks<AgentSSEEvent['data']>,
+  attachments?: any[]
 ): Promise<() => void> => {
+  console.log('chatWithSession body:', {
+  message,
+  timestamp: Math.floor(Date.now() / 1000),
+  event_id: eventId,
+  attachments
+});
   return createSSEConnection<AgentSSEEvent['data']>(
     `/sessions/${sessionId}/chat`,
     {
@@ -63,7 +70,8 @@ export const chatWithSession = async (
       body: { 
         message, 
         timestamp: Math.floor(Date.now() / 1000), 
-        event_id: eventId 
+        event_id: eventId,
+        attachments
       }
     },
     callbacks

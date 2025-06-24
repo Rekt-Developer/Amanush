@@ -61,7 +61,9 @@ const handleSubmit = async () => {
       // Navigate to new route with session_id, passing initial message via state
       router.push({
         path: `/chat/${sessionId}`,
-        state: { message: message.value }
+        state: {
+          message: message.value
+        }
       });
     } catch (error) {
       console.error('Failed to create session:', error);

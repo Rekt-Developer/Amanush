@@ -43,7 +43,7 @@
           </button>
           <PlanPanel :plan="plan" />
         </template>
-        <ChatBox v-model="inputMessage" :rows="1" @submit="chat(inputMessage)" :isRunning="isLoading" @stop="handleStop" />
+        <ChatBox v-model="inputMessage" :rows="1" @submit="chat" :isRunning="isLoading" @stop="handleStop" />
       </div>
     </div>
     <ToolPanel ref="toolPanel" :size="toolPanelSize" :sessionId="sessionId" :realTime="realTime" @jumpToRealTime="jumpToRealTime" />
@@ -249,7 +249,12 @@ const handleEvent = (event: AgentSSEEvent) => {
   lastEventId.value = event.data.event_id;
 }
 
-const chat = async (message: string = '') => {
+const chat = async (payload: { message: string, attachments: any[] }) => {
+  const message = payload?.message || '';
+   const attachments = payload?.attachments
+        ? payload.attachments.map(a => JSON.parse(JSON.stringify(a)))
+        : [];
+  console.log('chat方法收到的attachments：', attachments);
   if (!sessionId.value) return;
 
   // Cancel any existing chat connection before starting a new one
@@ -308,8 +313,9 @@ const chat = async (message: string = '') => {
           if (cancelCurrentChat.value) {
             cancelCurrentChat.value = null;
           }
-        }
-      }
+        },
+      },
+       attachments
     );
   } catch (error) {
     console.error('Chat error:', error);
@@ -363,9 +369,10 @@ onMounted(() => {
     sessionId.value = String(routeParams.sessionId) as string;
     // Get initial message from history.state
     const message = history.state?.message;
+    const attachments = history.state?.attachments || [];
     history.replaceState({}, document.title);
     if (message) {
-      chat(message);
+      chat({ message, attachments});
     } else {
       restoreSession();
     }
