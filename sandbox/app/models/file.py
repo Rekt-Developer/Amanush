@@ -32,5 +32,11 @@ class FileSearchResult(BaseModel):
 
 class FileFindResult(BaseModel):
     """File find result"""
-    path: str = Field(..., description="Path of the search directory")
-    files: List[str] = Field([], description="List of found files")
+    path: str = Field(..., description="Search directory path")
+    files: List[str] = Field(..., description="Found file paths")
+
+
+class FileExistsResult(BaseModel):
+    """File exists check result"""
+    path: str = Field(..., description="Checked file or directory path")
+    exists: bool = Field(..., description="Whether file or directory exists")

@@ -12,7 +12,7 @@ from fastapi.params import File, Form, Query
 from app.core.exceptions import ResourceNotFoundException
 from app.schemas.file import (
     FileReadRequest, FileWriteRequest, FileReplaceRequest,
-    FileSearchRequest, FileFindRequest
+    FileSearchRequest, FileFindRequest, FileExistsRequest
 )
 from app.schemas.response import Response
 from app.services.file import file_service
@@ -120,9 +120,27 @@ async def find_files(request: FileFindRequest):
     )
 
 
+@router.post("/exists", response_model=Response)
+async def check_file_exists(request: FileExistsRequest):
+    """
+    Check if file or directory exists
+    """
+    result = await file_service.check_exists(
+        path=request.path
+    )
+
+    # Construct response
+    return Response(
+        success=True,
+        message="File existence check completed",
+        data=result.model_dump()
+    )
+
+
 @router.post("/upload", response_model=Response)
 async def upload_file(
         file_data: UploadFile = File(..., description="待上传的文件"),
+        target_path: str = Form(..., description="目标路径"),
         content_type: Optional[str] = Form(None, description="文件类型"),
 ):
     """
@@ -131,6 +149,7 @@ async def upload_file(
     result = await file_service.upload_file(
         file_data=file_data.file,
         filename=file_data.filename,
+        target_path=target_path,
         content_type=content_type or file_data.content_type
     )
     return Response(

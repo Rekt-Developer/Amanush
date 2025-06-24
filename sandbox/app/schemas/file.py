@@ -46,6 +46,11 @@ class FileFindRequest(BaseModel):
     glob: str = Field(..., description="Filename pattern (glob syntax)")
 
 
+class FileExistsRequest(BaseModel):
+    """File exists check request"""
+    path: str = Field(..., description="File or directory path to check")
+
+
 class FileUploadResult(BaseModel):
     filename: str
     path: str

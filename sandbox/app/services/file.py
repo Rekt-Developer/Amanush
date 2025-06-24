@@ -10,7 +10,7 @@ from io import BytesIO
 from typing import Optional, BinaryIO
 from app.models.file import (
     FileReadResult, FileWriteResult, FileReplaceResult,
-    FileSearchResult, FileFindResult
+    FileSearchResult, FileFindResult, FileExistsResult
 )
 from app.core.exceptions import AppException, ResourceNotFoundException, BadRequestException
 from app.schemas.file import FileUploadResult, FileDownloadResult
@@ -250,18 +250,41 @@ class FileService:
             files=files
         )
 
+    async def check_exists(self, path: str) -> FileExistsResult:
+        """
+        Asynchronously check if file or directory exists
+        
+        Args:
+            path: File or directory path to check
+        """
+        # Asynchronously check existence
+        def exists_async():
+            return os.path.exists(path)
+
+        exists = await asyncio.to_thread(exists_async)
+
+        return FileExistsResult(
+            path=path,
+            exists=exists
+        )
 
     async def upload_file(
             self,
             file_data: BinaryIO,
             filename: str,
+            target_path: str,
             content_type: Optional[str] = None
     ):
-        upload_path = "upload"
-        os.makedirs(upload_path, exist_ok=True)
-        file_path = os.path.join(upload_path, filename)
+        # 确保目标目录存在
+        os.makedirs(target_path, exist_ok=True)
+
+        # 构建完整的文件路径
+        file_path = os.path.join(target_path, filename)
+
+        # 写入文件
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file_data, f)
+
         size = os.path.getsize(file_path)
         return FileUploadResult(
             filename=filename,
