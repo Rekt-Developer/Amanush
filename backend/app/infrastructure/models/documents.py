@@ -7,6 +7,7 @@ from app.domain.models.memory import Memory
 from app.domain.models.event import AgentEvent
 from app.domain.models.session import Session, SessionStatus
 from app.domain.models.file import FileInfo
+from app.domain.models.user import User, UserRole
 
 T = TypeVar('T', bound=BaseModel)
 
@@ -40,6 +41,26 @@ class BaseDocument(Document, Generic[T]):
         data = domain_obj.model_dump()
         data[cls._ID_FIELD] = data.pop('id')
         return cls.model_validate(data)
+
+class UserDocument(BaseDocument[User], id_field="user_id", domain_model_class=User):
+    """MongoDB document for User"""
+    user_id: str
+    username: str
+    email: Optional[str] = None
+    password_hash: Optional[str] = None
+    role: UserRole = UserRole.USER
+    is_active: bool = True
+    created_at: datetime = datetime.now(timezone.utc)
+    updated_at: datetime = datetime.now(timezone.utc)
+    last_login_at: Optional[datetime] = None
+
+    class Settings:
+        name = "users"
+        indexes = [
+            "user_id",
+            "username",
+            "email",
+        ]
 
 class AgentDocument(BaseDocument[Agent], id_field="agent_id", domain_model_class=Agent):
     """MongoDB document for Agent"""
