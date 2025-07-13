@@ -1,0 +1,40 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "backend"
+		},
+		{
+			"path": "frontend"
+		},
+		{
+			"path": "sandbox"
+		},
+		{
+			"path": "mockserver"
+		},
+		{
+			"path": "docs"
+		}
+	],
+	"settings": {},
+	"tasks": {
+		"version": "2.0.0",
+		"tasks": [
+			{
+				"label": "reset mock server",
+				"type": "shell",
+				"command": "touch mockserver/main.py",
+				"problemMatcher": []
+			},
+			{
+				"label": "run docs",
+				"type": "shell",
+				"command": "docsify serve docs",
+				"problemMatcher": []
+			}
+		]
+	}
+}
