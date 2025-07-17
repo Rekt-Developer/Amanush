@@ -27,11 +27,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "/api/v1/auth/register",
             "/api/v1/auth/status",
             "/api/v1/auth/refresh",
-            "/docs",
-            "/redoc",
-            "/openapi.json",
-            "/health",
-            "/"
         ]
     
     async def dispatch(self, request: Request, call_next):
@@ -118,9 +113,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={
-                "success": False,
                 "code": 401,
-                "message": message,
+                "msg": message,
                 "data": None
             }
         )

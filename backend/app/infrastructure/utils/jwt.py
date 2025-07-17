@@ -25,8 +25,8 @@ class JWTManager:
             "email": user.email,
             "role": user.role.value,
             "is_active": user.is_active,
-            "iat": now,  # Issued at
-            "exp": expire,  # Expiration time
+            "iat": int(now.timestamp()),  # Issued at (timestamp)
+            "exp": int(expire.timestamp()),  # Expiration time (timestamp)
             "type": "access"
         }
         
@@ -50,8 +50,8 @@ class JWTManager:
         payload = {
             "sub": user.id,  # Subject (user ID)
             "username": user.username,
-            "iat": now,  # Issued at
-            "exp": expire,  # Expiration time
+            "iat": int(now.timestamp()),  # Issued at (timestamp)
+            "exp": int(expire.timestamp()),  # Expiration time (timestamp)
             "type": "refresh"
         }
         
@@ -78,7 +78,7 @@ class JWTManager:
             
             # Check if token is not expired
             exp = payload.get("exp")
-            if exp and datetime.fromtimestamp(exp, UTC) < datetime.now(UTC):
+            if exp and exp < int(datetime.now(UTC).timestamp()):
                 logger.warning("Token has expired")
                 return None
             

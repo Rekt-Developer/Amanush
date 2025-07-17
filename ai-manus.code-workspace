@@ -24,6 +24,12 @@
 		"version": "2.0.0",
 		"tasks": [
 			{
+				"label": "dev",
+				"type": "shell",
+				"command": "./dev.sh up -d",
+				"problemMatcher": []
+			},
+			{
 				"label": "reset mock server",
 				"type": "shell",
 				"command": "touch mockserver/main.py",
@@ -33,6 +39,24 @@
 				"label": "run docs",
 				"type": "shell",
 				"command": "docsify serve docs",
+				"problemMatcher": []
+			},
+			{
+				"label": "sandbox logs",
+				"type": "shell",
+				"command": "./dev.sh logs -f sandbox",
+				"problemMatcher": []
+			},
+			{
+				"label": "frontend logs",
+				"type": "shell",
+				"command": "./dev.sh logs -f frontend",
+				"problemMatcher": []
+			},
+			{
+				"label": "backend logs",
+				"type": "shell",
+				"command": "./dev.sh logs -f backend",
 				"problemMatcher": []
 			}
 		]

@@ -1,6 +1,7 @@
 // Backend API client configuration
 import axios, { AxiosError } from 'axios';
 import { fetchEventSource, EventSourceMessage } from '@microsoft/fetch-event-source';
+import { router } from '@/main';
 
 // API configuration
 export const API_CONFIG = {
@@ -13,6 +14,9 @@ export const API_CONFIG = {
 export const BASE_URL = API_CONFIG.host 
   ? `${API_CONFIG.host}/api/${API_CONFIG.version}` 
   : `/api/${API_CONFIG.version}`;
+
+// Login page route name/path
+const LOGIN_ROUTE = '/login';
 
 // Unified response format
 export interface ApiResponse<T> {
@@ -37,20 +41,116 @@ export const apiClient = axios.create({
   },
 });
 
-// Request interceptor, can add authentication token etc.
+// Request interceptor, add authentication token
 apiClient.interceptors.request.use(
   (config) => {
-    // Authentication token can be added here
-    // const token = localStorage.getItem('token');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    // Add authentication token if available
+    const token = localStorage.getItem('access_token');
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor, unified error handling
+// Track if we're currently refreshing token to prevent multiple concurrent requests
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  
+  failedQueue = [];
+};
+
+/**
+ * Redirect to login page using Vue Router
+ */
+const redirectToLogin = () => {
+  // Check if we're already on the login page
+  if (window.location.pathname === LOGIN_ROUTE || 
+      router.currentRoute.value.path === LOGIN_ROUTE) {
+    return; // Already on login page, no need to redirect
+  }
+
+  // Use Vue Router to navigate to login page
+  setTimeout(() => {
+    window.location.href = LOGIN_ROUTE;
+  }, 100);
+};
+
+/**
+ * Common token refresh logic used by both axios interceptor and SSE connections
+ */
+const refreshAuthToken = async (): Promise<string | null> => {
+  if (isRefreshing) {
+    // If already refreshing, queue this request
+    return new Promise((resolve, reject) => {
+      failedQueue.push({ resolve, reject });
+    });
+  }
+
+  isRefreshing = true;
+  const refreshToken = localStorage.getItem('refresh_token');
+  
+  if (!refreshToken) {
+    // No refresh token available, clear auth and redirect to login
+    localStorage.removeItem('access_token');
+    delete apiClient.defaults.headers.Authorization;
+    window.dispatchEvent(new CustomEvent('auth:logout'));
+    redirectToLogin();
+    isRefreshing = false;
+    throw new Error('No refresh token available');
+  }
+
+  try {
+    // Attempt to refresh token
+    const response = await apiClient.post('/auth/refresh', {
+      refresh_token: refreshToken
+    });
+    
+    if (response.data && response.data.data) {
+      const newAccessToken = response.data.data.access_token;
+      localStorage.setItem('access_token', newAccessToken);
+      
+      // Update default headers
+      apiClient.defaults.headers.Authorization = `Bearer ${newAccessToken}`;
+      
+      // Process queued requests
+      processQueue(null, newAccessToken);
+      
+      return newAccessToken;
+    } else {
+      throw new Error('Invalid refresh response');
+    }
+  } catch (refreshError) {
+    // Refresh token failed, clear tokens and redirect to login
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    delete apiClient.defaults.headers.Authorization;
+    
+    processQueue(refreshError, null);
+    
+    // Emit logout event
+    window.dispatchEvent(new CustomEvent('auth:logout'));
+    
+    // Redirect to login page
+    redirectToLogin();
+    
+    throw refreshError;
+  } finally {
+    isRefreshing = false;
+  }
+};
+
+// Response interceptor, unified error handling and token refresh
 apiClient.interceptors.response.use(
   (response) => {
     // Check backend response format
@@ -67,7 +167,26 @@ apiClient.interceptors.response.use(
     }
     return response;
   },
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
+    const originalRequest = error.config as any;
+    
+    // Handle 401 Unauthorized errors with token refresh
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const newAccessToken = await refreshAuthToken();
+        if (newAccessToken) {
+          // Retry original request with new token
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return apiClient(originalRequest);
+        }
+      } catch (refreshError) {
+        // Token refresh failed, error already handled in refreshAuthToken
+        console.error('Token refresh failed:', refreshError);
+      }
+    }
+
     const apiError: ApiError = {
       code: 500,
       message: 'Request failed',
@@ -114,6 +233,31 @@ export interface SSEOptions {
 }
 
 /**
+ * Handle SSE authentication errors and attempt token refresh
+ */
+const handleSSEAuthError = async <T = any>(
+  error: Error,
+  endpoint: string,
+  options: SSEOptions,
+  callbacks: SSECallbacks<T>
+): Promise<void> => {
+  try {
+    const newAccessToken = await refreshAuthToken();
+    if (newAccessToken) {
+      // Emit event for token refresh success
+      window.dispatchEvent(new CustomEvent('auth:token-refreshed'));
+      console.log('Token refreshed for SSE connection, reconnection should be handled by calling code');
+    }
+  } catch (refreshError) {
+    // Token refresh failed, error already handled in refreshAuthToken
+    console.error('SSE token refresh failed:', refreshError);
+    if (callbacks.onError) {
+      callbacks.onError(refreshError as Error);
+    }
+  }
+};
+
+/**
  * Generic SSE connection function
  * @param endpoint - API endpoint (relative to BASE_URL)
  * @param options - Request options
@@ -137,6 +281,18 @@ export const createSSEConnection = async <T = any>(
   
   const apiUrl = `${BASE_URL}${endpoint}`;
   
+  // Add authentication headers
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...headers,
+  };
+  
+  // Add authentication token if available
+  const token = localStorage.getItem('access_token');
+  if (token && !requestHeaders.Authorization) {
+    requestHeaders.Authorization = `Bearer ${token}`;
+  }
+  
   // 创建SSE连接
   const createConnection = async (): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -147,14 +303,23 @@ export const createSSEConnection = async <T = any>(
 
       const ssePromise = fetchEventSource(apiUrl, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers,
-        },
+        headers: requestHeaders,
         openWhenHidden: true,
         body: body ? JSON.stringify(body) : undefined,
         signal: abortController.signal,
-        async onopen() {
+        async onopen(response) {
+          // Check for authentication errors in the initial response
+          if (response.status === 401) {
+            const authError = new Error('Unauthorized');
+            await handleSSEAuthError(authError, endpoint, options, callbacks);
+            return;
+          }
+          
+          // Check for other error status codes
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
           if (onOpen) {
             onOpen();
           }
@@ -177,6 +342,7 @@ export const createSSEConnection = async <T = any>(
         onerror(err: any) {
           const error = err instanceof Error ? err : new Error(String(err));
           console.error('EventSource error:', error);
+          
           if (onError) {
             onError(error);
           }

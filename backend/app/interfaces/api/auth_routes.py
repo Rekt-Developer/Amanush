@@ -259,7 +259,7 @@ async def logout(
         # Extract token from Authorization header
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token required")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
         
         token = auth_header.split(" ")[1]
         
@@ -268,6 +268,9 @@ async def logout(
         
         return APIResponse.success({"message": "Logout successful"})
         
+    except HTTPException:
+        # Re-raise HTTPException to preserve status code
+        raise
     except Exception as e:
         logger.error(f"Logout error: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Logout failed") 
