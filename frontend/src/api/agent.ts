@@ -3,6 +3,7 @@ import { apiClient, BASE_URL, ApiResponse, createSSEConnection, SSECallbacks } f
 import { AgentSSEEvent } from '../types/event';
 import { CreateSessionResponse, GetSessionResponse, ShellViewResponse, FileViewResponse, ListSessionResponse } from '../types/response';
 import type { FileInfo } from './file';
+import { createVncAccessToken } from './auth';
 
 /**
  * Create Session
@@ -41,10 +42,30 @@ export async function stopSession(sessionId: string): Promise<void> {
   await apiClient.post<ApiResponse<void>>(`/sessions/${sessionId}/stop`);
 }
 
-export const getVNCUrl = (sessionId: string): string => {
-  // Convert http to ws, https to wss
-  const wsBaseUrl = BASE_URL.replace(/^http/, 'ws');
-  return `${wsBaseUrl}/sessions/${sessionId}/vnc`;
+/**
+ * Get VNC WebSocket URL
+ * @param sessionId Session ID
+ * @param options Optional configuration
+ * @param options.useToken Whether to generate URL with access token (default: false)
+ * @param options.expireMinutes Token expiration time in minutes (default: 60, only used when useToken is true)
+ * @returns Promise resolving to VNC WebSocket URL string
+ * 
+ * @example
+ * // Traditional URL (requires Authorization header)
+ * const url = await getVNCUrl('session123');
+ * 
+ * @example  
+ * // Token-based URL (no Authorization header needed)
+ * const url = await getVNCUrl('session123', { useToken: true });
+ * const url = await getVNCUrl('session123', { useToken: true, expireMinutes: 120 });
+ */
+export const getVNCUrl = async (
+  sessionId: string, 
+  expireMinutes: number = 60
+): Promise<string> => {
+    const tokenResponse = await createVncAccessToken(sessionId, expireMinutes);
+    const wsBaseUrl = BASE_URL.replace(/^http/, 'ws');
+    return `${wsBaseUrl}/sessions/${sessionId}/vnc?token=${tokenResponse.access_token}`;
 }
 
 /**

@@ -14,7 +14,7 @@
           <div v-if="props.live" ref="vncContainer"
             style="display: flex; width: 100%; height: 100%; overflow: auto; background: rgb(40, 40, 40);">
           </div>
-          <img v-else alt="Image Preview" class="cursor-pointer w-full" referrerpolicy="no-referrer" :src="getFileDownloadUrl(toolContent?.content?.screenshot)">
+          <img v-else alt="Image Preview" class="cursor-pointer w-full" referrerpolicy="no-referrer" :src="imageUrl">
         </div>
         <button
           @click="takeOver"
@@ -29,7 +29,7 @@
 
 <script setup lang="ts">
 import { ToolContent } from '@/types/message';
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { getVNCUrl } from '@/api/agent';
 import { getFileDownloadUrl } from '@/api/file';
@@ -46,8 +46,9 @@ const props = defineProps<{
 const { t } = useI18n();
 const vncContainer = ref<HTMLDivElement | null>(null);
 let rfb: RFB | null = null;
+const imageUrl = ref('');
 
-const initVNCConnection = () => {
+const initVNCConnection = async () => {
   if (!vncContainer.value) return;
 
   if (rfb) {
@@ -56,7 +57,7 @@ const initVNCConnection = () => {
   }
 
   const sessionId = props.sessionId;
-  const wsUrl = getVNCUrl(sessionId);
+  const wsUrl = await getVNCUrl(sessionId);
 
   // Create NoVNC connection
   rfb = new RFB(vncContainer.value, wsUrl, {
@@ -87,9 +88,17 @@ const initVNCConnection = () => {
   });
 };
 
-onMounted(() => {
-  initVNCConnection();
+onMounted(async () => {
+  //initVNCConnection();
 });
+
+watch(() => props.toolContent?.content?.screenshot, async () => {
+  console.log('live', props.live);
+  if (!props.toolContent?.content?.screenshot) {
+    return;
+  }
+  imageUrl.value = await getFileDownloadUrl(props.toolContent?.content?.screenshot);
+}, { immediate: true });
 
 watch(vncContainer, () => {
   if (vncContainer.value) {

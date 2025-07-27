@@ -4,9 +4,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from typing import Optional
 import logging
+import re
 
-from app.infrastructure.config import get_settings
+from app.core.config import get_settings
 from app.application.services.auth_service import AuthService
+from app.application.services.jwt import get_jwt_manager
 from app.infrastructure.repositories.user_repository import MongoUserRepository
 from app.domain.models.user import User
 
@@ -34,6 +36,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         
         # Skip authentication for excluded paths
         if any(request.url.path.startswith(path) for path in self.excluded_paths):
+            return await call_next(request)
+        
+        # Check if this is a resource access request with token parameter
+        if self._is_resource_access_with_token(request):
             return await call_next(request)
         
         # Skip authentication if auth_provider is 'none'
@@ -108,6 +114,52 @@ class AuthMiddleware(BaseHTTPMiddleware):
             logger.warning(f"Bearer token auth failed: {e}")
             return None
     
+    def _is_resource_access_with_token(self, request: Request) -> bool:
+        """Check if request is resource access with valid token parameter"""
+        try:
+            # Check if token parameter exists
+            token = request.query_params.get("token")
+            if not token:
+                return False
+            
+            # Determine resource type and ID based on URL pattern
+            resource_type = None
+            resource_id = None
+            
+            # File download: GET /api/v1/files/{file_id}
+            file_download_pattern = r'^/api/v1/files/([^/]+)/?$'
+            if request.method == "GET":
+                file_match = re.match(file_download_pattern, request.url.path)
+                if file_match:
+                    resource_type = "file"
+                    resource_id = file_match.group(1)
+            
+            # VNC WebSocket: WebSocket /api/v1/sessions/{session_id}/vnc
+            vnc_pattern = r'^/api/v1/sessions/([^/]+)/vnc/?$'
+            vnc_match = re.match(vnc_pattern, request.url.path)
+            if vnc_match:
+                resource_type = "vnc"
+                resource_id = vnc_match.group(1)
+            
+            # If no matching pattern found
+            if not resource_type or not resource_id:
+                return False
+            
+            # Verify the resource access token
+            jwt_manager = get_jwt_manager()
+            token_payload = jwt_manager.verify_resource_access_token(token, resource_type, resource_id)
+            
+            if token_payload:
+                logger.info(f"{resource_type.upper()} access authenticated via token for {resource_type}: {resource_id}")
+                return True
+            else:
+                logger.warning(f"Invalid {resource_type} access token for {resource_type}: {resource_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error checking resource access token: {e}")
+            return False
+
     def _unauthorized_response(self, message: str) -> JSONResponse:
         """Return unauthorized response"""
         return JSONResponse(

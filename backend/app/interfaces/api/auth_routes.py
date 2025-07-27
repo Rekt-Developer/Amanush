@@ -3,16 +3,23 @@ from typing import Optional
 import logging
 
 from app.application.services.auth_service import AuthService
-from app.application.errors.exceptions import UnauthorizedError, ValidationError
-from app.interfaces.dependencies import get_auth_service, get_current_user
-from app.interfaces.schemas.response import APIResponse
+from app.application.services.jwt import JWTManager, get_jwt_manager
+from app.application.services.file_service import FileService
+from app.application.services.agent_service import AgentService
+from app.application.errors.exceptions import (
+    UnauthorizedError, ValidationError, NotFoundError, BadRequestError
+)
+from app.interfaces.dependencies import get_auth_service, get_current_user, get_file_service, get_agent_service
+from app.interfaces.schemas.response import APIResponse, ResourceAccessTokenResponse
 from app.interfaces.schemas.auth import (
     LoginRequest, RegisterRequest, ChangePasswordRequest, RefreshTokenRequest,
     LoginResponse, RegisterResponse, AuthStatusResponse, RefreshTokenResponse,
     UserResponse
 )
-from app.infrastructure.config import get_settings
+from app.interfaces.schemas.request import AccessTokenRequest
+from app.core.config import get_settings
 from app.domain.models.user import User
+from app.domain.models.auth import AuthToken
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +30,7 @@ def _user_to_response(user) -> UserResponse:
     """Convert user domain model to response schema"""
     return UserResponse(
         id=user.id,
-        username=user.username,
+        fullname=user.fullname,
         email=user.email,
         role=user.role,
         is_active=user.is_active,
@@ -39,28 +46,16 @@ async def login(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> APIResponse[LoginResponse]:
     """User login endpoint"""
-    try:
-        # Authenticate user and get tokens
-        auth_result = await auth_service.login_with_tokens(request.username, request.password)
-        
-        # Return success response with tokens
-        return APIResponse.success(LoginResponse(
-            user=_user_to_response(auth_result["user"]),
-            access_token=auth_result["access_token"],
-            refresh_token=auth_result["refresh_token"],
-            token_type=auth_result["token_type"],
-            message="Login successful"
-        ))
-        
-    except ValidationError as e:
-        logger.warning(f"Login validation error: {e}")
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    except UnauthorizedError as e:
-        logger.warning(f"Login unauthorized: {e}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
-    except Exception as e:
-        logger.error(f"Login error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Login failed")
+    # Authenticate user and get tokens
+    auth_result = await auth_service.login_with_tokens(request.email, request.password)
+    
+    # Return success response with tokens
+    return APIResponse.success(LoginResponse(
+        user=_user_to_response(auth_result.user),
+        access_token=auth_result.access_token,
+        refresh_token=auth_result.refresh_token,
+        token_type=auth_result.token_type
+    ))
 
 
 @router.post("/register", response_model=APIResponse[RegisterResponse])
@@ -69,33 +64,24 @@ async def register(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> APIResponse[RegisterResponse]:
     """User registration endpoint"""
-    try:
-        # Register user
-        user = await auth_service.register_user(
-            username=request.username,
-            password=request.password,
-            email=request.email
-        )
-        
-        # Generate tokens for the new user
-        access_token = auth_service.jwt_manager.create_access_token(user)
-        refresh_token = auth_service.jwt_manager.create_refresh_token(user)
-        
-        # Return success response with tokens
-        return APIResponse.success(RegisterResponse(
-            user=_user_to_response(user),
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type="bearer",
-            message="User registered successfully"
-        ))
-        
-    except ValidationError as e:
-        logger.warning(f"Registration validation error: {e}")
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    except Exception as e:
-        logger.error(f"Registration error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Registration failed")
+    # Register user
+    user = await auth_service.register_user(
+        fullname=request.fullname,
+        password=request.password,
+        email=request.email
+    )
+    
+    # Generate tokens for the new user
+    access_token = auth_service.jwt_manager.create_access_token(user)
+    refresh_token = auth_service.jwt_manager.create_refresh_token(user)
+    
+    # Return success response with tokens
+    return APIResponse.success(RegisterResponse(
+        user=_user_to_response(user),
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer"
+    ))
 
 
 @router.get("/status", response_model=APIResponse[AuthStatusResponse])
@@ -108,8 +94,7 @@ async def get_auth_status(
     return APIResponse.success(AuthStatusResponse(
         authenticated=False,  # This would be determined by middleware in real app
         user=None,
-        auth_provider=settings.auth_provider,
-        message=f"Authentication provider: {settings.auth_provider}"
+        auth_provider=settings.auth_provider
     ))
 
 
@@ -120,21 +105,10 @@ async def change_password(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> APIResponse[dict]:
     """Change user password endpoint"""
-    try:
-        # Change password for current user
-        await auth_service.change_password(current_user.id, request.old_password, request.new_password)
-        
-        return APIResponse.success({"message": "Password changed successfully"})
-        
-    except ValidationError as e:
-        logger.warning(f"Password change validation error: {e}")
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    except UnauthorizedError as e:
-        logger.warning(f"Password change unauthorized: {e}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
-    except Exception as e:
-        logger.error(f"Password change error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Password change failed")
+    # Change password for current user
+    await auth_service.change_password(current_user.id, request.old_password, request.new_password)
+    
+    return APIResponse.success({})
 
 
 @router.get("/me", response_model=APIResponse[UserResponse])
@@ -152,23 +126,16 @@ async def get_user(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> APIResponse[UserResponse]:
     """Get user information by ID (admin only)"""
-    try:
-        # Check if current user is admin
-        if current_user.role != "admin":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-        
-        user = await auth_service.get_user_by_id(user_id)
-        
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
-        return APIResponse.success(_user_to_response(user))
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Get user error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get user")
+    # Check if current user is admin
+    if current_user.role != "admin":
+        raise UnauthorizedError("Admin access required")
+    
+    user = await auth_service.get_user_by_id(user_id)
+    
+    if not user:
+        raise NotFoundError("User not found")
+    
+    return APIResponse.success(_user_to_response(user))
 
 
 @router.post("/user/{user_id}/deactivate", response_model=APIResponse[dict])
@@ -178,26 +145,16 @@ async def deactivate_user(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> APIResponse[dict]:
     """Deactivate user account (admin only)"""
-    try:
-        # Check if current user is admin
-        if current_user.role != "admin":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-        
-        # Prevent self-deactivation
-        if current_user.id == user_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot deactivate your own account")
-        
-        await auth_service.deactivate_user(user_id)
-        return APIResponse.success({"message": "User deactivated successfully"})
-        
-    except HTTPException:
-        raise
-    except ValidationError as e:
-        logger.warning(f"User deactivation validation error: {e}")
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    except Exception as e:
-        logger.error(f"User deactivation error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User deactivation failed")
+    # Check if current user is admin
+    if current_user.role != "admin":
+        raise UnauthorizedError("Admin access required")
+    
+    # Prevent self-deactivation
+    if current_user.id == user_id:
+        raise BadRequestError("Cannot deactivate your own account")
+    
+    await auth_service.deactivate_user(user_id)
+    return APIResponse.success({})
 
 
 @router.post("/user/{user_id}/activate", response_model=APIResponse[dict])
@@ -207,22 +164,12 @@ async def activate_user(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> APIResponse[dict]:
     """Activate user account (admin only)"""
-    try:
-        # Check if current user is admin
-        if current_user.role != "admin":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-        
-        await auth_service.activate_user(user_id)
-        return APIResponse.success({"message": "User activated successfully"})
-        
-    except HTTPException:
-        raise
-    except ValidationError as e:
-        logger.warning(f"User activation validation error: {e}")
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    except Exception as e:
-        logger.error(f"User activation error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User activation failed")
+    # Check if current user is admin
+    if current_user.role != "admin":
+        raise UnauthorizedError("Admin access required")
+    
+    await auth_service.activate_user(user_id)
+    return APIResponse.success({})
 
 
 @router.post("/refresh", response_model=APIResponse[RefreshTokenResponse])
@@ -231,22 +178,13 @@ async def refresh_token(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> APIResponse[RefreshTokenResponse]:
     """Refresh access token endpoint"""
-    try:
-        # Refresh access token
-        token_result = await auth_service.refresh_access_token(request.refresh_token)
-        
-        return APIResponse.success(RefreshTokenResponse(
-            access_token=token_result["access_token"],
-            token_type=token_result["token_type"],
-            message="Token refreshed successfully"
-        ))
-        
-    except UnauthorizedError as e:
-        logger.warning(f"Token refresh unauthorized: {e}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
-    except Exception as e:
-        logger.error(f"Token refresh error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Token refresh failed")
+    # Refresh access token
+    token_result = await auth_service.refresh_access_token(request.refresh_token)
+    
+    return APIResponse.success(RefreshTokenResponse(
+        access_token=token_result.access_token,
+        token_type=token_result.token_type
+    ))
 
 
 @router.post("/logout", response_model=APIResponse[dict])
@@ -255,22 +193,70 @@ async def logout(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> APIResponse[dict]:
     """User logout endpoint"""
-    try:
-        # Extract token from Authorization header
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    # Extract token from Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise UnauthorizedError("Authentication required")
+    
+    token = auth_header.split(" ")[1]
+    
+    # Revoke token
+    await auth_service.logout(token)
+    
+    return APIResponse.success({})
+
+
+@router.post("/access-tokens", response_model=APIResponse[ResourceAccessTokenResponse])
+async def create_access_token(
+    request_data: AccessTokenRequest,
+    http_request: Request,
+    current_user: User = Depends(get_current_user),
+    file_service: FileService = Depends(get_file_service),
+    agent_service: AgentService = Depends(get_agent_service),
+    jwt_manager: JWTManager = Depends(get_jwt_manager)
+) -> APIResponse[ResourceAccessTokenResponse]:
+    """Generate unified access token for various resource types
+    
+    Supports:
+    - file: File download access
+    - vnc: VNC WebSocket access
+    """
+    
+    # Validate expiration time (max 24 hours)
+    expire_minutes = request_data.expire_minutes
+    if expire_minutes > 24 * 60:
+        expire_minutes = 24 * 60
+    
+    # Validate resource based on type
+    if request_data.resource_type == "file":
+        # Check if file exists
+        file_info = await file_service.get_file_info(request_data.resource_id)
+        if not file_info:
+            raise NotFoundError("File not found")
         
-        token = auth_header.split(" ")[1]
+    elif request_data.resource_type == "vnc":
+        # Check if session exists and belongs to user
+        await agent_service.get_session(request_data.resource_id, current_user.id)
         
-        # Revoke token
-        await auth_service.logout(token)
-        
-        return APIResponse.success({"message": "Logout successful"})
-        
-    except HTTPException:
-        # Re-raise HTTPException to preserve status code
-        raise
-    except Exception as e:
-        logger.error(f"Logout error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Logout failed") 
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported resource type: {request_data.resource_type}"
+        )
+    
+    # Create resource access token
+    access_token = jwt_manager.create_resource_access_token(
+        resource_type=request_data.resource_type,
+        resource_id=request_data.resource_id,
+        user_id=current_user.id,
+        expire_minutes=expire_minutes
+    )
+    
+    logger.info(f"Created {request_data.resource_type} access token for user {current_user.id}, resource {request_data.resource_id}")
+    
+    return APIResponse.success(ResourceAccessTokenResponse(
+        access_token=access_token,
+        resource_type=request_data.resource_type,
+        resource_id=request_data.resource_id,
+        expires_in=expire_minutes * 60,  # Convert to seconds
+    )) 

@@ -2,6 +2,7 @@
 import axios, { AxiosError } from 'axios';
 import { fetchEventSource, EventSourceMessage } from '@microsoft/fetch-event-source';
 import { router } from '@/main';
+import { clearStoredTokens } from './auth';
 
 // API configuration
 export const API_CONFIG = {
@@ -102,7 +103,7 @@ const refreshAuthToken = async (): Promise<string | null> => {
   
   if (!refreshToken) {
     // No refresh token available, clear auth and redirect to login
-    localStorage.removeItem('access_token');
+    clearStoredTokens();
     delete apiClient.defaults.headers.Authorization;
     window.dispatchEvent(new CustomEvent('auth:logout'));
     redirectToLogin();
@@ -114,7 +115,10 @@ const refreshAuthToken = async (): Promise<string | null> => {
     // Attempt to refresh token
     const response = await apiClient.post('/auth/refresh', {
       refresh_token: refreshToken
-    });
+    }, {
+      // Add special marker to prevent interceptor from retrying this request
+      __isRefreshRequest: true
+    } as any);
     
     if (response.data && response.data.data) {
       const newAccessToken = response.data.data.access_token;
@@ -132,8 +136,7 @@ const refreshAuthToken = async (): Promise<string | null> => {
     }
   } catch (refreshError) {
     // Refresh token failed, clear tokens and redirect to login
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    clearStoredTokens();
     delete apiClient.defaults.headers.Authorization;
     
     processQueue(refreshError, null);
@@ -169,6 +172,17 @@ apiClient.interceptors.response.use(
   },
   async (error: AxiosError) => {
     const originalRequest = error.config as any;
+    
+    // Skip retry logic for refresh requests to prevent infinite loops
+    if (originalRequest.__isRefreshRequest) {
+      const apiError: ApiError = {
+        code: error.response?.status || 500,
+        message: 'Token refresh failed',
+        details: error.response?.data
+      };
+      console.error('Refresh token request failed:', apiError);
+      return Promise.reject(apiError);
+    }
     
     // Handle 401 Unauthorized errors with token refresh
     if (error.response?.status === 401 && !originalRequest._retry) {

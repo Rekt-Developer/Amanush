@@ -1,13 +1,16 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from typing import Optional
 import logging
 
 from app.application.services.file_service import FileService
+from app.application.services.jwt import JWTManager, get_jwt_manager
 from app.application.errors.exceptions import NotFoundError
 from app.interfaces.dependencies import get_file_service
+from app.interfaces.middleware.auth import get_current_user
+from app.domain.models.user import User
 from app.interfaces.schemas.response import (
-    APIResponse, FileUploadResponse, FileInfoResponse,
+    APIResponse, FileUploadResponse, FileInfoResponse, ResourceAccessTokenResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,9 +41,25 @@ async def upload_file(
 @router.get("/{file_id}")
 async def download_file(
     file_id: str,
-    file_service: FileService = Depends(get_file_service)
+    token: Optional[str] = Query(None, description="File access token"),
+    file_service: FileService = Depends(get_file_service),
+    jwt_manager: JWTManager = Depends(get_jwt_manager)
 ):
-    """Download file"""
+    """Download file with optional access token"""
+    
+    # If token is provided, verify it instead of using normal authentication
+    if token:
+        # Verify resource access token for file
+        token_payload = jwt_manager.verify_resource_access_token(token, "file", file_id)
+        if not token_payload:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired file access token"
+            )
+        
+        logger.info(f"File download authorized via token for file: {file_id}")
+    
+    # Download file (authentication is handled by middleware for non-token requests)
     try:
         file_data, file_info = await file_service.download_file(file_id)
     except FileNotFoundError:

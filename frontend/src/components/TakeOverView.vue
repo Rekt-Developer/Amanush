@@ -55,8 +55,7 @@ const initVNCConnection = async () => {
         return;
     }
     
-    const wsUrl = getVNCUrl(sessionIdToUse);
-    console.log('sessionIdToUse', sessionIdToUse);
+    const wsUrl = await getVNCUrl(sessionIdToUse);
 
     // Disconnect existing connection if any
     if (rfb) {

@@ -1,5 +1,6 @@
 // File API service
 import { apiClient, ApiResponse } from './client';
+import { createFileAccessToken } from './auth';
 
 /**
  * File info type
@@ -81,8 +82,25 @@ export async function getFileInfo(fileId: string): Promise<FileInfo | null> {
 /**
  * Get file download URL
  * @param fileId File ID
- * @returns Download URL string
+ * @param options Optional configuration
+ * @param options.useToken Whether to generate URL with access token (default: false)
+ * @param options.expireMinutes Token expiration time in minutes (default: 60, only used when useToken is true)
+ * @returns Promise resolving to download URL string
+ * 
+ * @example
+ * // Traditional URL (requires Authorization header)
+ * const url = await getFileDownloadUrl('file123');
+ * 
+ * @example  
+ * // Token-based URL (no Authorization header needed)
+ * const url = await getFileDownloadUrl('file123', { useToken: true });
+ * const url = await getFileDownloadUrl('file123', { useToken: true, expireMinutes: 120 });
  */
-export function getFileDownloadUrl(fileId: string): string {
-  return `${apiClient.defaults.baseURL}/files/${fileId}`;
+export async function getFileDownloadUrl(
+  fileId: string,
+  expireMinutes: number = 60
+): Promise<string> {
+  // Return URL with access token
+  const tokenResponse = await createFileAccessToken(fileId, expireMinutes);
+  return `${apiClient.defaults.baseURL}/files/${fileId}?token=${tokenResponse.access_token}`;
 }
