@@ -5,6 +5,7 @@ from functools import lru_cache
 class Settings(BaseSettings):
     
     # Model provider configuration
+    model_provider: str = "openai"  # "openai" or "gemini"
     api_key: str | None = None
     api_base: str = "https://api.deepseek.com/v1"
     
