@@ -65,15 +65,21 @@ pip install -r requirements.txt
 
 3. **Environment variable configuration**:
 Create a `.env` file and set the following environment variables:
+
 ```
 # Model provider configuration
-API_KEY=your_api_key_here                # API key for OpenAI or other model providers
-API_BASE=https://api.openai.com/v1       # Base URL for the model API, can be replaced with other model provider API addresses
+# Set MODEL_PROVIDER to "openai" for OpenAI-compatible models, or "gemini" for Google Gemini
+MODEL_PROVIDER=openai  # or "gemini"
+# For OpenAI: your OpenAI/compatible API key. For Gemini: your Google API key.
+API_KEY=your_api_key_here
+# For OpenAI-compatible models, set API_BASE. Not required for Gemini.
+API_BASE=https://api.openai.com/v1
 
 # Model configuration
-MODEL_NAME=gpt-4o                        # Model name to use
-TEMPERATURE=0.7                          # Model temperature parameter
-MAX_TOKENS=2000                          # Maximum output tokens per model request
+# For OpenAI: e.g. "gpt-4o", "deepseek-chat". For Gemini: use "gemini-pro" or other Gemini model name.
+MODEL_NAME=gpt-4o  # e.g. "gpt-4o" or "gemini-pro"
+TEMPERATURE=0.7
+MAX_TOKENS=2000
 
 # Google search configuration
 GOOGLE_SEARCH_API_KEY=                   # Google Search API key for web search functionality (optional)
@@ -93,6 +99,10 @@ REDIS_URL=redis://localhost:6379/0       # Redis connection URL
 # Log configuration
 LOG_LEVEL=INFO                           # Log level, options: DEBUG, INFO, WARNING, ERROR, CRITICAL
 ```
+
+**Gemini Usage Notes:**
+- To use Gemini, set `MODEL_PROVIDER=gemini`, provide your Google API key in `API_KEY`, and set `MODEL_NAME=gemini-pro` (or another Gemini model).
+- `API_BASE` is not required for Gemini.
 
 ## Running the Service
 

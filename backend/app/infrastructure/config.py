@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     model_provider: str = "openai"  # "openai" or "gemini"
     api_key: str | None = None
     api_base: str = "https://api.deepseek.com/v1"
+    gemini_api_key: str | None = None
     
     # Model configuration
     model_name: str = "deepseek-chat"
@@ -53,11 +54,13 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         
     def validate(self):
-        if not self.api_key:
-            raise ValueError("API key is required")
+        if self.model_provider == "openai" and not self.api_key:
+            raise ValueError("API_KEY is required for openai provider")
+        if self.model_provider == "gemini" and not self.gemini_api_key:
+            raise ValueError("GEMINI_API_KEY is required for gemini provider")
 
 @lru_cache()
 def get_settings() -> Settings:
     settings = Settings()
     settings.validate()
-    return settings 
+    return settings
